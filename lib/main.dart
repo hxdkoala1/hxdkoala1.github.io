@@ -3,7 +3,8 @@ import 'dart:async';
 import 'package:epub_view/epub_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart' show GoogleSignInCredentials;
+import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart'
+    show GoogleSignInCredentials;
 import 'package:html/dom.dart' as html;
 import 'package:html/parser.dart' show parse;
 
@@ -23,8 +24,8 @@ const _coral = Color(0xFFB64D3E);
 class Book {
   const Book({required this.driveEntry, required this.coverColor});
 
-  factory Book.fromDrive(DriveEntry entry, int index) =>
-      Book(driveEntry: entry, coverColor: _coverColors[index % _coverColors.length]);
+  factory Book.fromDrive(DriveEntry entry, int index) => Book(
+      driveEntry: entry, coverColor: _coverColors[index % _coverColors.length]);
 
   final DriveEntry driveEntry;
   final Color coverColor;
@@ -154,7 +155,9 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
     setState(() => _driveBusy = true);
     try {
       final client = await _auth.authenticatedClient;
-      if (client == null) throw StateError('Sign in to Google before opening Drive.');
+      if (client == null) {
+        throw StateError('Sign in to Google before opening Drive.');
+      }
       final drive = DriveLibraryService(client);
       if (!mounted) return;
       final folder = await showDialog<DriveEntry>(
@@ -164,12 +167,15 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
       if (folder == null) return;
 
       final files = await drive.listChildren(folder.id);
-      final books = files.where((entry) => !entry.isFolder && entry.isBook).toList();
+      final books =
+          files.where((entry) => !entry.isFolder && entry.isBook).toList();
       if (!mounted) return;
       setState(() {
         _drive = drive;
         _folderName = folder.name;
-        _books = [for (var i = 0; i < books.length; i++) Book.fromDrive(books[i], i)];
+        _books = [
+          for (var i = 0; i < books.length; i++) Book.fromDrive(books[i], i)
+        ];
         _query = '';
         _destination = 0;
       });
@@ -208,7 +214,8 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -256,57 +263,57 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
                   onSignIn: _signIn,
                 )
               : LayoutBuilder(
-        builder: (context, constraints) {
-          final desktop = constraints.maxWidth >= 850;
-          return Scaffold(
-            body: SafeArea(
-              child: Row(
-                children: [
-                  if (desktop)
-                    _SideNavigation(
-                      selectedIndex: _destination,
-                      bookCount: _books.length,
-                      onSelected: (index) => setState(() {
-                        _destination = index;
-                      }),
-                    ),
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 220),
-                      child: _buildPage(desktop),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            bottomNavigationBar: desktop
-                ? null
-                : NavigationBar(
-                    selectedIndex: _destination,
-                    onDestinationSelected: (index) => setState(() {
-                      _destination = index;
-                    }),
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.auto_stories_outlined),
-                        selectedIcon: Icon(Icons.auto_stories),
-                        label: 'Library',
+                  builder: (context, constraints) {
+                    final desktop = constraints.maxWidth >= 850;
+                    return Scaffold(
+                      body: SafeArea(
+                        child: Row(
+                          children: [
+                            if (desktop)
+                              _SideNavigation(
+                                selectedIndex: _destination,
+                                bookCount: _books.length,
+                                onSelected: (index) => setState(() {
+                                  _destination = index;
+                                }),
+                              ),
+                            Expanded(
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                child: _buildPage(desktop),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      NavigationDestination(
-                        icon: Icon(Icons.menu_book_outlined),
-                        selectedIcon: Icon(Icons.menu_book),
-                        label: 'Read',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.tune_outlined),
-                        selectedIcon: Icon(Icons.tune),
-                        label: 'Settings',
-                      ),
-                    ],
-                  ),
-          );
-        },
-      ),
+                      bottomNavigationBar: desktop
+                          ? null
+                          : NavigationBar(
+                              selectedIndex: _destination,
+                              onDestinationSelected: (index) => setState(() {
+                                _destination = index;
+                              }),
+                              destinations: const [
+                                NavigationDestination(
+                                  icon: Icon(Icons.auto_stories_outlined),
+                                  selectedIcon: Icon(Icons.auto_stories),
+                                  label: 'Library',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.menu_book_outlined),
+                                  selectedIcon: Icon(Icons.menu_book),
+                                  label: 'Read',
+                                ),
+                                NavigationDestination(
+                                  icon: Icon(Icons.tune_outlined),
+                                  selectedIcon: Icon(Icons.tune),
+                                  label: 'Settings',
+                                ),
+                              ],
+                            ),
+                    );
+                  },
+                ),
     );
   }
 
@@ -317,7 +324,9 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         book: _readingBook,
         bytes: _readerBytes,
         loading: _readerBusy,
-        progress: _readingBook == null ? null : _progress[_readingBook!.driveEntry.id],
+        progress: _readingBook == null
+            ? null
+            : _progress[_readingBook!.driveEntry.id],
         fontFamily: _fontFamily,
         pageColor: _pageColor,
         onCustomize: _showReaderSettings,
@@ -423,7 +432,8 @@ class _SignInPage extends StatelessWidget {
                     const SizedBox(height: 18),
                     const Text(
                       'Reading Novels',
-                      style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700),
+                      style:
+                          TextStyle(fontSize: 30, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -442,10 +452,12 @@ class _SignInPage extends StatelessWidget {
                           icon: busy
                               ? const SizedBox.square(
                                   dimension: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.login),
-                          label: Text(busy ? 'Connecting...' : 'Continue with Google'),
+                          label: Text(
+                              busy ? 'Connecting...' : 'Continue with Google'),
                         ),
                       ),
                     if (!configured) ...[
@@ -453,12 +465,15 @@ class _SignInPage extends StatelessWidget {
                       const Text(
                         'Google OAuth is not configured yet. Add the OAuth client values to the run configuration to enable sign-in.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Color(0xFF77796F), fontSize: 13),
+                        style:
+                            TextStyle(color: Color(0xFF77796F), fontSize: 13),
                       ),
                     ],
                     if (error != null) ...[
                       const SizedBox(height: 16),
-                      Text(error!, textAlign: TextAlign.center, style: const TextStyle(color: _coral)),
+                      Text(error!,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: _coral)),
                     ],
                   ],
                 ),
@@ -504,7 +519,8 @@ class _DriveFolderPickerState extends State<_DriveFolderPicker> {
     try {
       final children = await widget.service.listChildren(_path.last.id);
       if (!mounted) return;
-      setState(() => _folders = children.where((entry) => entry.isFolder).toList());
+      setState(
+          () => _folders = children.where((entry) => entry.isFolder).toList());
     } catch (error) {
       if (mounted) setState(() => _error = error.toString());
     } finally {
@@ -533,7 +549,9 @@ class _DriveFolderPickerState extends State<_DriveFolderPicker> {
                 onPressed: _goBack,
                 icon: const Icon(Icons.arrow_back),
               ),
-            Expanded(child: Text(_path.last.name, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(
+                child: Text(_path.last.name,
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
           ],
         ),
         content: SizedBox(
@@ -544,14 +562,17 @@ class _DriveFolderPickerState extends State<_DriveFolderPicker> {
               : _error != null
                   ? Center(child: Text(_error!, textAlign: TextAlign.center))
                   : _folders.isEmpty
-                      ? const Center(child: Text('No folders here. You can use this folder.'))
+                      ? const Center(
+                          child:
+                              Text('No folders here. You can use this folder.'))
                       : ListView.builder(
                           itemCount: _folders.length,
                           itemBuilder: (context, index) {
                             final folder = _folders[index];
                             return ListTile(
                               leading: const Icon(Icons.folder_outlined),
-                              title: Text(folder.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              title: Text(folder.name,
+                                  maxLines: 1, overflow: TextOverflow.ellipsis),
                               trailing: const Icon(Icons.chevron_right),
                               onTap: () => _openFolder(folder),
                             );
@@ -559,9 +580,12 @@ class _DriveFolderPickerState extends State<_DriveFolderPicker> {
                         ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           FilledButton(
-            onPressed: _loading ? null : () => Navigator.pop(context, _path.last),
+            onPressed:
+                _loading ? null : () => Navigator.pop(context, _path.last),
             child: const Text('Use this folder'),
           ),
         ],
@@ -569,7 +593,10 @@ class _DriveFolderPickerState extends State<_DriveFolderPicker> {
 }
 
 class _SideNavigation extends StatelessWidget {
-  const _SideNavigation({required this.selectedIndex, required this.bookCount, required this.onSelected});
+  const _SideNavigation(
+      {required this.selectedIndex,
+      required this.bookCount,
+      required this.onSelected});
 
   final int selectedIndex;
   final int bookCount;
@@ -631,7 +658,8 @@ class _SideNavigation extends StatelessWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Text('$bookCount books', style: const TextStyle(color: Color(0xFF77796F))),
+              child: Text('$bookCount books',
+                  style: const TextStyle(color: Color(0xFF77796F))),
             ),
           ],
         ),
@@ -695,12 +723,14 @@ class _LibraryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final results = books
-        .where((book) =>
-            '${book.title} ${book.author} ${book.genre}'.toLowerCase().contains(query.toLowerCase()))
+        .where((book) => '${book.title} ${book.author} ${book.genre}'
+            .toLowerCase()
+            .contains(query.toLowerCase()))
         .toList();
 
     return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: desktop ? 46 : 20, vertical: 30),
+      padding:
+          EdgeInsets.symmetric(horizontal: desktop ? 46 : 20, vertical: 30),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1200),
@@ -713,9 +743,12 @@ class _LibraryPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Your library', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700)),
+                        Text('Your library',
+                            style: TextStyle(
+                                fontSize: 30, fontWeight: FontWeight.w700)),
                         SizedBox(height: 5),
-                        Text('Your books, ready when you are.', style: TextStyle(color: Color(0xFF77796F))),
+                        Text('Your books, ready when you are.',
+                            style: TextStyle(color: Color(0xFF77796F))),
                       ],
                     ),
                   ),
@@ -723,13 +756,15 @@ class _LibraryPage extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: driveBusy ? null : onConnect,
                       icon: driveBusy
-                          ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          ? const SizedBox.square(
+                              dimension: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.folder_open_outlined, size: 18),
-                        label: Text(driveBusy
+                      label: Text(driveBusy
                           ? 'Connecting...'
                           : folderName == null
-                            ? 'Choose Drive folder'
-                            : 'Change folder'),
+                              ? 'Choose Drive folder'
+                              : 'Change folder'),
                     ),
                     const SizedBox(width: 10),
                   ],
@@ -747,22 +782,23 @@ class _LibraryPage extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: driveBusy ? null : onConnect,
                     icon: driveBusy
-                      ? const SizedBox.square(
-                        dimension: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.folder_open_outlined, size: 18),
+                        ? const SizedBox.square(
+                            dimension: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.folder_open_outlined, size: 18),
                     label: Text(driveBusy
-                      ? 'Connecting...'
-                      : folderName == null
-                        ? 'Choose Drive folder'
-                        : 'Change folder'),
+                        ? 'Connecting...'
+                        : folderName == null
+                            ? 'Choose Drive folder'
+                            : 'Change folder'),
                   ),
                 ),
               ],
               if (folderName != null) ...[
                 const SizedBox(height: 12),
-                Text('Drive folder: $folderName', style: const TextStyle(color: Color(0xFF77796F))),
+                Text('Drive folder: $folderName',
+                    style: const TextStyle(color: Color(0xFF77796F))),
               ],
               const SizedBox(height: 25),
               TextField(
@@ -783,9 +819,12 @@ class _LibraryPage extends StatelessWidget {
               Row(
                 children: [
                   const Expanded(
-                    child: Text('On your shelf', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                    child: Text('On your shelf',
+                        style: TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.w700)),
                   ),
-                  Text('${results.length} titles', style: const TextStyle(color: Color(0xFF77796F))),
+                  Text('${results.length} titles',
+                      style: const TextStyle(color: Color(0xFF77796F))),
                 ],
               ),
               const SizedBox(height: 18),
@@ -829,7 +868,8 @@ class _LibraryPage extends StatelessWidget {
 }
 
 class _BookTile extends StatelessWidget {
-  const _BookTile({required this.book, required this.progress, required this.onTap});
+  const _BookTile(
+      {required this.book, required this.progress, required this.onTap});
 
   final Book book;
   final ReadingProgress? progress;
@@ -867,7 +907,8 @@ class _BookTile extends StatelessWidget {
               LinearProgressIndicator(value: progress!.value, minHeight: 4),
               const SizedBox(height: 3),
               Text('${(progress!.value * 100).round()}% complete',
-                  style: const TextStyle(fontSize: 10, color: Color(0xFF77796F))),
+                  style:
+                      const TextStyle(fontSize: 10, color: Color(0xFF77796F))),
             ],
           ],
         ),
@@ -892,7 +933,8 @@ class _BookCover extends StatelessWidget {
             Positioned(
               right: -25,
               bottom: -30,
-              child: Icon(Icons.circle_outlined, size: 150, color: Colors.white.withValues(alpha: 0.18)),
+              child: Icon(Icons.circle_outlined,
+                  size: 150, color: Colors.white.withValues(alpha: 0.18)),
             ),
             Padding(
               padding: const EdgeInsets.all(15),
@@ -910,7 +952,8 @@ class _BookCover extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Icon(Icons.auto_stories_outlined, size: 23, color: _ink.withValues(alpha: 0.72)),
+                  Icon(Icons.auto_stories_outlined,
+                      size: 23, color: _ink.withValues(alpha: 0.72)),
                   const SizedBox(height: 11),
                   Text(
                     book.title,
@@ -929,7 +972,8 @@ class _BookCover extends StatelessWidget {
                     book.author,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: _ink.withValues(alpha: 0.8), fontSize: 10),
+                    style: TextStyle(
+                        color: _ink.withValues(alpha: 0.8), fontSize: 10),
                   ),
                 ],
               ),
@@ -940,7 +984,8 @@ class _BookCover extends StatelessWidget {
 }
 
 class _BookDetailsSheet extends StatelessWidget {
-  const _BookDetailsSheet({required this.book, required this.progress, required this.onRead});
+  const _BookDetailsSheet(
+      {required this.book, required this.progress, required this.onRead});
 
   final Book book;
   final ReadingProgress? progress;
@@ -956,27 +1001,38 @@ class _BookDetailsSheet extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(width: 140, height: 205, child: _BookCover(book: book)),
+                  SizedBox(
+                      width: 140, height: 205, child: _BookCover(book: book)),
                   const SizedBox(width: 24),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(book.genre.toUpperCase(), style: const TextStyle(color: _coral, fontSize: 10, fontWeight: FontWeight.w700)),
+                        Text(book.genre.toUpperCase(),
+                            style: const TextStyle(
+                                color: _coral,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700)),
                         const SizedBox(height: 8),
-                        Text(book.title, style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700)),
+                        Text(book.title,
+                            style: const TextStyle(
+                                fontSize: 23, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 5),
-                        Text(book.author, style: const TextStyle(color: Color(0xFF77796F))),
+                        Text(book.author,
+                            style: const TextStyle(color: Color(0xFF77796F))),
                         const SizedBox(height: 15),
                         Text(book.genre),
                         const SizedBox(height: 12),
-                        Text(book.description, style: const TextStyle(height: 1.45)),
+                        Text(book.description,
+                            style: const TextStyle(height: 1.45)),
                         const SizedBox(height: 20),
                         Row(
                           children: [
                             const Expanded(
-                              child: Text('Reading progress', style: TextStyle(fontWeight: FontWeight.w600)),
+                              child: Text('Reading progress',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w600)),
                             ),
                             Text(
                               progress?.hasStarted == true
@@ -988,18 +1044,22 @@ class _BookDetailsSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         LinearProgressIndicator(value: progress?.value ?? 0),
-                        if (progress != null && progress!.totalSections > 0) ...[
+                        if (progress != null &&
+                            progress!.totalSections > 0) ...[
                           const SizedBox(height: 5),
                           Text(
                             'Section ${progress!.currentSection} of ${progress!.totalSections}',
-                            style: const TextStyle(fontSize: 12, color: Color(0xFF77796F)),
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF77796F)),
                           ),
                         ],
                         const SizedBox(height: 18),
                         FilledButton.icon(
                           onPressed: onRead,
                           icon: const Icon(Icons.menu_book_outlined),
-                          label: Text(progress?.hasStarted == true ? 'Continue reading' : 'Start reading'),
+                          label: Text(progress?.hasStarted == true
+                              ? 'Continue reading'
+                              : 'Start reading'),
                         ),
                       ],
                     ),
@@ -1054,7 +1114,8 @@ class _ReaderPageState extends State<_ReaderPage> {
   @override
   void didUpdateWidget(covariant _ReaderPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.bytes != widget.bytes || oldWidget.book?.driveEntry.id != widget.book?.driveEntry.id) {
+    if (oldWidget.bytes != widget.bytes ||
+        oldWidget.book?.driveEntry.id != widget.book?.driveEntry.id) {
       _epubController = null;
       _createEpubController();
     }
@@ -1079,7 +1140,9 @@ class _ReaderPageState extends State<_ReaderPage> {
     }
 
     final controller = _epubController;
-    if (controller == null) return const Center(child: CircularProgressIndicator());
+    if (controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return EpubView(
       controller: controller,
       onDocumentLoaded: (document) {
@@ -1095,10 +1158,13 @@ class _ReaderPageState extends State<_ReaderPage> {
       onChapterChanged: (value) {
         if (value == null || value.chapterNumber < 1) return;
         final sectionIndex = value.chapterNumber - 1;
-        final length = sectionIndex < _sectionLengths.length ? _sectionLengths[sectionIndex] : 0;
+        final length = sectionIndex < _sectionLengths.length
+            ? _sectionLengths[sectionIndex]
+            : 0;
         final sectionProgress = length > 0
-            ? ((value.paragraphNumber - 1 + value.progress / 100) / length).clamp(0.0, 1.0)
-          : (value.progress / 100).clamp(0.0, 1.0);
+            ? ((value.paragraphNumber - 1 + value.progress / 100) / length)
+                .clamp(0.0, 1.0)
+            : (value.progress / 100).clamp(0.0, 1.0);
         widget.onProgressChanged(ReadingProgress(
           currentSection: value.chapterNumber,
           totalSections: _totalChapters,
@@ -1118,7 +1184,8 @@ class _ReaderPageState extends State<_ReaderPage> {
     final elements = _flattenElements(body.children.toList());
     final anchor = chapter.Anchor;
     if (anchor == null) return elements.length;
-    final start = elements.indexWhere((element) => element.outerHtml.contains('id="$anchor"'));
+    final start = elements
+        .indexWhere((element) => element.outerHtml.contains('id="$anchor"'));
     return start < 0 ? elements.length : elements.length - start;
   }
 
@@ -1131,7 +1198,8 @@ class _ReaderPageState extends State<_ReaderPage> {
       ];
 
   void _showReaderError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not read this book: $message')));
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not read this book: $message')));
   }
 
   @override
@@ -1143,11 +1211,18 @@ class _ReaderPageState extends State<_ReaderPage> {
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
           child: Row(
             children: [
-              IconButton(tooltip: 'Back to library', onPressed: widget.onBrowse, icon: const Icon(Icons.arrow_back)),
+              IconButton(
+                  tooltip: 'Back to library',
+                  onPressed: widget.onBrowse,
+                  icon: const Icon(Icons.arrow_back)),
               const Spacer(),
-              Text(currentBook?.title ?? 'Reading room', style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(currentBook?.title ?? 'Reading room',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
               const Spacer(),
-              IconButton(tooltip: 'Reader appearance', onPressed: widget.onCustomize, icon: const Icon(Icons.tune)),
+              IconButton(
+                  tooltip: 'Reader appearance',
+                  onPressed: widget.onCustomize,
+                  icon: const Icon(Icons.tune)),
             ],
           ),
         ),
@@ -1187,11 +1262,15 @@ class _SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) => ListView(
         padding: const EdgeInsets.fromLTRB(24, 30, 24, 40),
         children: [
-          const Text('Settings', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700)),
+          const Text('Settings',
+              style: TextStyle(fontSize: 30, fontWeight: FontWeight.w700)),
           const SizedBox(height: 6),
-          const Text('Make your reading space feel like yours.', style: TextStyle(color: Color(0xFF77796F))),
+          const Text('Make your reading space feel like yours.',
+              style: TextStyle(color: Color(0xFF77796F))),
           const SizedBox(height: 32),
-          const Text('READER APPEARANCE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _green)),
+          const Text('READER APPEARANCE',
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: _green)),
           const SizedBox(height: 15),
           _ReaderControls(
             fontFamily: fontFamily,
@@ -1200,13 +1279,17 @@ class _SettingsPage extends StatelessWidget {
             onColorChanged: onColorChanged,
           ),
           const SizedBox(height: 36),
-          const Text('LIBRARY SYNC', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: _green)),
+          const Text('LIBRARY SYNC',
+              style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.w700, color: _green)),
           const SizedBox(height: 12),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.cloud_outlined),
             title: const Text('Google Drive'),
-            subtitle: Text(folderName == null ? 'No folder selected' : 'Connected to Google Drive'),
+            subtitle: Text(folderName == null
+                ? 'No folder selected'
+                : 'Connected to Google Drive'),
             trailing: OutlinedButton.icon(
               onPressed: driveBusy ? null : onConnect,
               icon: driveBusy
@@ -1215,7 +1298,11 @@ class _SettingsPage extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.folder_open_outlined, size: 18),
-              label: Text(driveBusy ? 'Connecting...' : folderName == null ? 'Choose' : 'Change'),
+              label: Text(driveBusy
+                  ? 'Connecting...'
+                  : folderName == null
+                      ? 'Choose'
+                      : 'Change'),
             ),
           ),
           ListTile(
@@ -1254,9 +1341,14 @@ class _ReaderControls extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Reading appearance', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const Text('Reading appearance',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 23),
-            const Text('TYPEFACE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF77796F))),
+            const Text('TYPEFACE',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF77796F))),
             const SizedBox(height: 10),
             SegmentedButton<String>(
               segments: const [
@@ -1268,7 +1360,11 @@ class _ReaderControls extends StatelessWidget {
               onSelectionChanged: (selection) => onFontChanged(selection.first),
             ),
             const SizedBox(height: 23),
-            const Text('PAGE COLOR', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF77796F))),
+            const Text('PAGE COLOR',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF77796F))),
             const SizedBox(height: 10),
             Wrap(
               spacing: 12,
@@ -1276,7 +1372,11 @@ class _ReaderControls extends StatelessWidget {
                 for (final color in _pageColors)
                   Semantics(
                     button: true,
-                    label: color == _pageColors[0] ? 'Warm paper' : color == _pageColors[1] ? 'White' : 'Night',
+                    label: color == _pageColors[0]
+                        ? 'Warm paper'
+                        : color == _pageColors[1]
+                            ? 'White'
+                            : 'Night',
                     child: InkWell(
                       onTap: () => onColorChanged(color),
                       customBorder: const CircleBorder(),
@@ -1287,12 +1387,18 @@ class _ReaderControls extends StatelessWidget {
                           color: color,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: pageColor == color ? _green : const Color(0xFFCBC6BC),
+                            color: pageColor == color
+                                ? _green
+                                : const Color(0xFFCBC6BC),
                             width: pageColor == color ? 3 : 1,
                           ),
                         ),
                         child: pageColor == color
-                            ? Icon(Icons.check, size: 18, color: color == _pageColors[2] ? Colors.white : _green)
+                            ? Icon(Icons.check,
+                                size: 18,
+                                color: color == _pageColors[2]
+                                    ? Colors.white
+                                    : _green)
                             : null,
                       ),
                     ),
