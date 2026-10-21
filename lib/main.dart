@@ -334,6 +334,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         fontFamily: _fontFamily,
         pageColor: _pageColor,
         folderName: _folderName,
+        driveBusy: _driveBusy,
         onFontChanged: (value) => setState(() => _fontFamily = value),
         onColorChanged: (value) => setState(() => _pageColor = value),
         onConnect: _connectDrive,
@@ -724,7 +725,11 @@ class _LibraryPage extends StatelessWidget {
                       icon: driveBusy
                           ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.folder_open_outlined, size: 18),
-                      label: Text(folderName == null ? 'Choose Drive folder' : 'Change folder'),
+                        label: Text(driveBusy
+                          ? 'Connecting...'
+                          : folderName == null
+                            ? 'Choose Drive folder'
+                            : 'Change folder'),
                     ),
                     const SizedBox(width: 10),
                   ],
@@ -741,8 +746,17 @@ class _LibraryPage extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
                     onPressed: driveBusy ? null : onConnect,
-                    icon: const Icon(Icons.folder_open_outlined, size: 18),
-                    label: Text(folderName == null ? 'Choose Drive folder' : 'Change folder'),
+                    icon: driveBusy
+                      ? const SizedBox.square(
+                        dimension: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.folder_open_outlined, size: 18),
+                    label: Text(driveBusy
+                      ? 'Connecting...'
+                      : folderName == null
+                        ? 'Choose Drive folder'
+                        : 'Change folder'),
                   ),
                 ),
               ],
@@ -1155,6 +1169,7 @@ class _SettingsPage extends StatelessWidget {
     required this.fontFamily,
     required this.pageColor,
     required this.folderName,
+    required this.driveBusy,
     required this.onFontChanged,
     required this.onColorChanged,
     required this.onConnect,
@@ -1163,6 +1178,7 @@ class _SettingsPage extends StatelessWidget {
   final String fontFamily;
   final Color pageColor;
   final String? folderName;
+  final bool driveBusy;
   final ValueChanged<String> onFontChanged;
   final ValueChanged<Color> onColorChanged;
   final VoidCallback onConnect;
@@ -1191,7 +1207,16 @@ class _SettingsPage extends StatelessWidget {
             leading: const Icon(Icons.cloud_outlined),
             title: const Text('Google Drive'),
             subtitle: Text(folderName == null ? 'No folder selected' : 'Connected to Google Drive'),
-            trailing: OutlinedButton(onPressed: onConnect, child: Text(folderName == null ? 'Choose' : 'Change')),
+            trailing: OutlinedButton.icon(
+              onPressed: driveBusy ? null : onConnect,
+              icon: driveBusy
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.folder_open_outlined, size: 18),
+              label: Text(driveBusy ? 'Connecting...' : folderName == null ? 'Choose' : 'Change'),
+            ),
           ),
           ListTile(
             contentPadding: EdgeInsets.zero,
