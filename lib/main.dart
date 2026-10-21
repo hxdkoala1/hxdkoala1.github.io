@@ -180,10 +180,40 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         _destination = 0;
       });
     } catch (error) {
-      _showMessage('Could not connect to Google Drive: $error');
+      if (mounted) await _showDriveConnectionError(error);
     } finally {
       if (mounted) setState(() => _driveBusy = false);
     }
+  }
+
+  Future<void> _showDriveConnectionError(Object error) async {
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Google Drive could not connect'),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SelectableText(error.toString()),
+              const SizedBox(height: 12),
+              const Text(
+                'If access was denied, check that the Drive API is enabled and '
+                'your Google account is listed as a test user in the OAuth consent settings.',
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _openReader(Book book) async {
@@ -560,7 +590,20 @@ class _DriveFolderPickerState extends State<_DriveFolderPicker> {
           child: _loading
               ? const Center(child: CircularProgressIndicator())
               : _error != null
-                  ? Center(child: Text(_error!, textAlign: TextAlign.center))
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SelectableText(_error!, textAlign: TextAlign.center),
+                          const SizedBox(height: 12),
+                          TextButton.icon(
+                            onPressed: _loadFolders,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    )
                   : _folders.isEmpty
                       ? const Center(
                           child:

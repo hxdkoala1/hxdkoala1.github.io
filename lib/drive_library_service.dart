@@ -55,7 +55,10 @@ class DriveLibraryService {
           _ =>
             'Google Drive could not list this folder (${response.statusCode}).',
         };
-        throw Exception(message);
+        final details = _driveErrorDetails(response.body);
+        throw Exception(
+          details == null ? message : '$message Details: $details',
+        );
       }
 
       final body = jsonDecode(response.body) as Map<String, dynamic>;
@@ -87,5 +90,27 @@ class DriveLibraryService {
           'Could not download ${entry.name} (${response.statusCode}).');
     }
     return response.bodyBytes;
+  }
+}
+
+String? _driveErrorDetails(String body) {
+  try {
+    final decoded = jsonDecode(body);
+    if (decoded is! Map) return null;
+    final error = decoded['error'];
+    if (error is! Map) return null;
+
+    final errors = error['errors'];
+    final firstError =
+        errors is List && errors.isNotEmpty ? errors.first : null;
+    final reason = firstError is Map ? firstError['reason'] : null;
+    final message = error['message'];
+    final details = [
+      if (reason is String && reason.isNotEmpty) reason,
+      if (message is String && message.isNotEmpty) message,
+    ];
+    return details.isEmpty ? null : details.join(': ');
+  } on FormatException {
+    return null;
   }
 }
