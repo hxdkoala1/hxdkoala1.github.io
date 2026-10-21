@@ -244,7 +244,15 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
                   configured: _auth.isConfigured,
                   busy: _authBusy,
                   error: _authError,
-                  webButton: _auth.webSignInButton,
+                  webButton: _auth.webSignInButton(
+                    onSignIn: (_) {
+                      if (!mounted) return;
+                      setState(() {
+                        _isSignedIn = true;
+                        _authError = null;
+                      });
+                    },
+                  ),
                   onSignIn: _signIn,
                 )
               : LayoutBuilder(

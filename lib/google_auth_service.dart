@@ -54,8 +54,10 @@ class GoogleAuthService {
     return _client.authenticatedClient;
   }
 
-  Widget? get webSignInButton {
+  Widget? webSignInButton({required ValueChanged<GoogleSignInCredentials> onSignIn}) {
     if (!kIsWeb || !isConfigured) return null;
-    return _client.signInButton();
+    return _client.signInButton(
+      config: GSIAPButtonConfig(onSignIn: onSignIn),
+    );
   }
 }
