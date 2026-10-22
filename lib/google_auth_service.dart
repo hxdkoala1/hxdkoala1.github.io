@@ -62,9 +62,9 @@ class GoogleAuthService {
       final accessToken = await drive_access
           .requestDriveAccessToken(clientId, driveScope)
           .timeout(
-            const Duration(seconds: 60),
+            const Duration(seconds: 30),
             onTimeout: () => throw TimeoutException(
-              'Google Drive authorization timed out. Allow the Google popup and try again.',
+              'Google did not return from the authorization window within 30 seconds.',
             ),
           );
       return _DriveAccessClient(accessToken);

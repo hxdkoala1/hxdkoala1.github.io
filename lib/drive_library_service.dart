@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -45,7 +46,12 @@ class DriveLibraryService {
         'fields': 'nextPageToken,files(id,name,mimeType,size)',
         if (pageToken != null) 'pageToken': pageToken,
       });
-      final response = await _client.get(uri);
+      final response = await _client.get(uri).timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw TimeoutException(
+              'Google Drive did not respond within 20 seconds. Check the connection and retry.',
+            ),
+          );
       if (response.statusCode != 200) {
         final message = switch (response.statusCode) {
           401 =>

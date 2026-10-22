@@ -44,8 +44,8 @@
 
         var settled = false;
         var timeout = window.setTimeout(function () {
-          finish(reject, new Error('Google Drive authorization timed out. Allow the Google popup and try again.'));
-        }, 60000);
+          finish(reject, new Error('Google did not return from the authorization window within 30 seconds.'));
+        }, 30000);
 
         function finish(callback, value) {
           if (settled) return;

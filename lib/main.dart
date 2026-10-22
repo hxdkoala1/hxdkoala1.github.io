@@ -73,6 +73,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
   bool _authRestoring = true;
   bool _authBusy = false;
   bool _driveBusy = false;
+  String _driveStatus = '';
   bool _readerBusy = false;
   StreamSubscription<GoogleSignInCredentials?>? _authSubscription;
 
@@ -152,14 +153,18 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
   }
 
   Future<void> _connectDrive() async {
-    setState(() => _driveBusy = true);
+    setState(() {
+      _driveBusy = true;
+      _driveStatus = 'Waiting for Google...';
+    });
     try {
       final client = await _auth.authenticatedClient;
       if (client == null) {
         throw StateError('Sign in to Google before opening Drive.');
       }
-      final drive = DriveLibraryService(client);
       if (!mounted) return;
+      setState(() => _driveStatus = 'Loading Drive...');
+      final drive = DriveLibraryService(client);
       final folder = await showDialog<DriveEntry>(
         context: context,
         builder: (context) => _DriveFolderPicker(service: drive),
@@ -182,7 +187,12 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
     } catch (error) {
       if (mounted) await _showDriveConnectionError(error);
     } finally {
-      if (mounted) setState(() => _driveBusy = false);
+      if (mounted) {
+        setState(() {
+          _driveBusy = false;
+          _driveStatus = '';
+        });
+      }
     }
   }
 
@@ -374,6 +384,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         pageColor: _pageColor,
         folderName: _folderName,
         driveBusy: _driveBusy,
+        driveStatus: _driveStatus,
         onFontChanged: (value) => setState(() => _fontFamily = value),
         onColorChanged: (value) => setState(() => _pageColor = value),
         onConnect: _connectDrive,
@@ -386,6 +397,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
       progress: _progress,
       folderName: _folderName,
       driveBusy: _driveBusy,
+      driveStatus: _driveStatus,
       query: _query,
       onQueryChanged: (value) => setState(() => _query = value),
       onOpenBook: _showBookDetails,
@@ -745,6 +757,7 @@ class _LibraryPage extends StatelessWidget {
     required this.progress,
     required this.folderName,
     required this.driveBusy,
+    required this.driveStatus,
     required this.query,
     required this.onQueryChanged,
     required this.onOpenBook,
@@ -757,6 +770,7 @@ class _LibraryPage extends StatelessWidget {
   final Map<String, ReadingProgress> progress;
   final String? folderName;
   final bool driveBusy;
+  final String driveStatus;
   final String query;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<Book> onOpenBook;
@@ -804,7 +818,7 @@ class _LibraryPage extends StatelessWidget {
                               child: CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.folder_open_outlined, size: 18),
                       label: Text(driveBusy
-                          ? 'Connecting...'
+                          ? driveStatus
                           : folderName == null
                               ? 'Choose Drive folder'
                               : 'Change folder'),
@@ -831,7 +845,7 @@ class _LibraryPage extends StatelessWidget {
                           )
                         : const Icon(Icons.folder_open_outlined, size: 18),
                     label: Text(driveBusy
-                        ? 'Connecting...'
+                        ? driveStatus
                         : folderName == null
                             ? 'Choose Drive folder'
                             : 'Change folder'),
@@ -1288,6 +1302,7 @@ class _SettingsPage extends StatelessWidget {
     required this.pageColor,
     required this.folderName,
     required this.driveBusy,
+    required this.driveStatus,
     required this.onFontChanged,
     required this.onColorChanged,
     required this.onConnect,
@@ -1297,6 +1312,7 @@ class _SettingsPage extends StatelessWidget {
   final Color pageColor;
   final String? folderName;
   final bool driveBusy;
+  final String driveStatus;
   final ValueChanged<String> onFontChanged;
   final ValueChanged<Color> onColorChanged;
   final VoidCallback onConnect;
@@ -1342,7 +1358,7 @@ class _SettingsPage extends StatelessWidget {
                     )
                   : const Icon(Icons.folder_open_outlined, size: 18),
               label: Text(driveBusy
-                  ? 'Connecting...'
+                  ? driveStatus
                   : folderName == null
                       ? 'Choose'
                       : 'Change'),
