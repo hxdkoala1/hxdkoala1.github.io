@@ -33,59 +33,6 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
-  <script>
-    window.requestDriveAccessToken = function (clientId, scope) {
-      return new Promise(function (resolve, reject) {
-        if (!window.google || !google.accounts || !google.accounts.oauth2) {
-          reject(new Error('Google authorization did not load. Reload the page and try again.'));
-          return;
-        }
-
-        var settled = false;
-        var timeout = window.setTimeout(function () {
-          finish(reject, new Error('Google did not return from the authorization window within 30 seconds.'));
-        }, 30000);
-
-        function finish(callback, value) {
-          if (settled) return;
-          settled = true;
-          window.clearTimeout(timeout);
-          callback(value);
-        }
-
-        try {
-          var tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: scope,
-            callback: function (response) {
-              if (response.error) {
-                finish(reject, new Error(response.error_description || response.error));
-              } else if (!response.access_token) {
-                finish(reject, new Error('Google did not return a Drive access token.'));
-              } else if ((response.scope || '').split(' ').indexOf(scope) === -1) {
-                finish(reject, new Error('Google Drive read access was not granted.'));
-              } else {
-                finish(resolve, response.access_token);
-              }
-            },
-            error_callback: function (error) {
-              var type = error && error.type ? error.type : 'authorization_failed';
-              var message = type === 'popup_failed_to_open'
-                ? 'Allow pop-ups for this site, then try again.'
-                : type === 'popup_closed'
-                  ? 'Google Drive access was cancelled.'
-                  : 'Google Drive authorization failed (' + type + ').';
-              finish(reject, new Error(message));
-            }
-          });
-          tokenClient.requestAccessToken();
-        } catch (error) {
-          finish(reject, error);
-        }
-      });
-    };
-  </script>
   <!--
     You can customize the "flutter_bootstrap.js" script.
     This is useful to provide a custom configuration to the Flutter loader

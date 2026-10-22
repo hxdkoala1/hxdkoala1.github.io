@@ -37,8 +37,6 @@ jobs:
         run: flutter test
 
       - name: Build web app
-        env:
-          GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
         run: |
           repository_name="${GITHUB_REPOSITORY#*/}"
           base_href="/${repository_name}/"
@@ -46,8 +44,7 @@ jobs:
             base_href="/"
           fi
           flutter build web --release \
-            --base-href "${base_href}" \
-            --dart-define="GOOGLE_OAUTH_CLIENT_ID=${GOOGLE_OAUTH_CLIENT_ID}"
+            --base-href "${base_href}"
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

@@ -1,19 +1,18 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart' as crypto;
 import 'package:epub_view/epub_view.dart';
-import 'package:flutter/foundation.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart'
-    show GoogleSignInCredentials;
 import 'package:html/dom.dart' as html;
 import 'package:html/parser.dart' show parse;
 
-import 'drive_library_service.dart';
-import 'google_auth_service.dart';
+import 'local_library_store.dart';
 import 'reading_progress_store.dart';
 
 void main() {
-  runApp(const ReadingNovelsApp());
+  runApp(ReadingNovelsApp());
 }
 
 const _ink = Color(0xFF202820);
@@ -22,20 +21,29 @@ const _green = Color(0xFF315747);
 const _coral = Color(0xFFB64D3E);
 
 class Book {
-  const Book({required this.driveEntry, required this.coverColor});
+  const Book({
+    required this.id,
+    required this.fileName,
+    required this.coverColor,
+  });
 
-  factory Book.fromDrive(DriveEntry entry, int index) => Book(
-      driveEntry: entry, coverColor: _coverColors[index % _coverColors.length]);
+  factory Book.fromStored(StoredEpub epub, int index) => Book(
+        id: epub.id,
+        fileName: epub.fileName,
+        coverColor: _coverColors[index % _coverColors.length],
+      );
 
-  final DriveEntry driveEntry;
+  final String id;
+  final String fileName;
   final Color coverColor;
 
-  String get title => driveEntry.name;
-  String get author => 'Google Drive';
+  String get title =>
+      fileName.replaceFirst(RegExp(r'\.epub$', caseSensitive: false), '');
+  String get author => 'Local EPUB';
   int get year => 0;
   int get pages => 0;
-  String get genre => driveEntry.format;
-  String get description => 'Stored in the selected Google Drive folder.';
+  String get genre => 'EPUB';
+  String get description => 'Imported from this device.';
 }
 
 const _coverColors = [
@@ -48,15 +56,19 @@ const _coverColors = [
 ];
 
 class ReadingNovelsApp extends StatefulWidget {
-  const ReadingNovelsApp({super.key});
+  ReadingNovelsApp({super.key, LocalLibraryStore? libraryStore})
+      : libraryStore = libraryStore ?? LocalLibraryStore();
+
+  final LocalLibraryStore libraryStore;
 
   @override
   State<ReadingNovelsApp> createState() => _ReadingNovelsAppState();
 }
 
 class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
-  final _auth = GoogleAuthService();
   final _progressStore = ReadingProgressStore();
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+  LocalLibraryStore get _libraryStore => widget.libraryStore;
 
   int _destination = 0;
   String _query = '';
@@ -65,187 +77,86 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
   Book? _readingBook;
   List<Book> _books = [];
   Map<String, ReadingProgress> _progress = {};
-  DriveLibraryService? _drive;
   Uint8List? _readerBytes;
-  String? _folderName;
-  String? _authError;
-  bool _isSignedIn = false;
-  bool _authRestoring = true;
-  bool _authBusy = false;
-  bool _driveBusy = false;
-  String _driveStatus = '';
+  String? _libraryError;
+  bool _libraryLoading = true;
+  bool _importBusy = false;
   bool _readerBusy = false;
-  StreamSubscription<GoogleSignInCredentials?>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
-    _restoreSession();
+    _loadLibrary();
   }
 
-  Future<void> _restoreSession() async {
+  Future<void> _loadLibrary() async {
     try {
-      _progress = await _progressStore.loadAll();
-    } catch (_) {
-      _progress = {};
-    }
-
-    if (_auth.isConfigured && !kIsWeb) {
-      try {
-        _authRestoring = true;
-        _authError = null;
-        _authSubscription = _auth.authenticationState.listen((credentials) {
-          if (mounted) setState(() => _isSignedIn = credentials != null);
-        });
-        final credentials = await _auth.restoreSession();
-        _isSignedIn = credentials != null;
-      } catch (error) {
-        _authError = 'Google sign-in could not be restored: $error';
-      }
+      await _libraryStore.open();
+      final storedBooks = _libraryStore.loadAll();
+      final progress = await _progressStore.loadAll();
+      if (!mounted) return;
+      setState(() {
+        _books = [
+          for (var i = 0; i < storedBooks.length; i++)
+            Book.fromStored(storedBooks[i], i),
+        ];
+        _progress = progress;
+      });
+    } catch (error) {
+      _libraryError = 'Could not load the local library: $error';
     }
     if (mounted) {
-      setState(() {
-        _authRestoring = false;
-      });
+      setState(() => _libraryLoading = false);
     }
   }
 
-  @override
-  void dispose() {
-    _authSubscription?.cancel();
-    super.dispose();
-  }
-
-  Future<void> _signIn() async {
-    if (!_auth.isConfigured) return;
+  Future<void> _importEpubs() async {
+    if (_importBusy) return;
     setState(() {
-      _authBusy = true;
-      _authError = null;
+      _importBusy = true;
+      _libraryError = null;
     });
     try {
-      final credentials = await _auth.signIn();
-      if (credentials != null && mounted) {
-        setState(() => _isSignedIn = true);
-      }
-    } catch (error) {
-      _authError = 'Google sign-in failed: $error';
-    } finally {
-      if (mounted) {
-        setState(() {
-          _authBusy = false;
-          _authRestoring = false;
-        });
-      }
-    }
-  }
-
-  void _enterDriveTestMode() {
-    setState(() {
-      _isSignedIn = true;
-      _authError = null;
-    });
-  }
-
-  Future<void> _signOut() async {
-    await _auth.signOut();
-    if (!mounted) return;
-    setState(() {
-      _isSignedIn = false;
-      _books = [];
-      _drive = null;
-      _folderName = null;
-      _readingBook = null;
-      _readerBytes = null;
-      _destination = 0;
-    });
-  }
-
-  Future<void> _connectDrive() async {
-    setState(() {
-      _driveBusy = true;
-      _driveStatus = 'Waiting for Google...';
-    });
-    try {
-      final client = await _auth.authenticatedClient;
-      if (client == null) {
-        throw StateError('Sign in to Google before opening Drive.');
-      }
-      if (!mounted) return;
-      setState(() => _driveStatus = 'Loading Drive...');
-      final drive = DriveLibraryService(client);
-      final folder = await showDialog<DriveEntry>(
-        context: context,
-        builder: (context) => _DriveFolderPicker(service: drive),
+      final files = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['epub'],
       );
-      if (folder == null) return;
+      if (files.isEmpty) return;
 
-      final files = await drive.listChildren(folder.id);
-      final books =
-          files.where((entry) => !entry.isFolder && entry.isBook).toList();
+      final imported = <String, Book>{for (final book in _books) book.id: book};
+      for (final file in files) {
+        if (!file.name.toLowerCase().endsWith('.epub')) continue;
+        final bytes = await file.readAsBytes();
+        final id = crypto.sha256.convert(bytes).toString();
+        final stored = StoredEpub(id: id, fileName: file.name);
+        await _libraryStore.save(stored, bytes);
+        imported[id] = Book.fromStored(stored, imported.length);
+      }
       if (!mounted) return;
       setState(() {
-        _drive = drive;
-        _folderName = folder.name;
-        _books = [
-          for (var i = 0; i < books.length; i++) Book.fromDrive(books[i], i)
-        ];
+        _books = imported.values.toList();
         _query = '';
-        _destination = 0;
       });
+      _showMessage('EPUB files imported to this device.');
     } catch (error) {
-      if (mounted) await _showDriveConnectionError(error);
-    } finally {
       if (mounted) {
-        setState(() {
-          _driveBusy = false;
-          _driveStatus = '';
-        });
+        setState(() => _libraryError = 'Could not import EPUB files: $error');
       }
+    } finally {
+      if (mounted) setState(() => _importBusy = false);
     }
-  }
-
-  Future<void> _showDriveConnectionError(Object error) async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Google Drive could not connect'),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SelectableText(error.toString()),
-              const SizedBox(height: 12),
-              const Text(
-                'If access was denied, check that the Drive API is enabled and '
-                'your Google account is listed as a test user in the OAuth consent settings.',
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _openReader(Book book) async {
-    final drive = _drive;
-    if (drive == null) return;
     setState(() {
-      _readerBusy = true;
       _readingBook = book;
+      _readerBytes = null;
+      _readerBusy = true;
       _destination = 1;
     });
     try {
-      final bytes = await drive.download(book.driveEntry);
-      if (!mounted) return;
-      setState(() => _readerBytes = bytes);
+      final bytes = await _libraryStore.loadBytes(book.id);
+      if (mounted) setState(() => _readerBytes = bytes);
     } catch (error) {
       if (mounted) {
         setState(() => _destination = 0);
@@ -257,13 +168,12 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
   }
 
   void _saveProgress(Book book, ReadingProgress progress) {
-    setState(() => _progress[book.driveEntry.id] = progress);
-    unawaited(_progressStore.save(book.driveEntry.id, progress));
+    setState(() => _progress[book.id] = progress);
+    unawaited(_progressStore.save(book.id, progress));
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(message)));
   }
 
   @override
@@ -291,71 +201,62 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
     return MaterialApp(
       title: 'Reading Novels',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _messengerKey,
       theme: theme,
-      home: _authRestoring
+      home: _libraryLoading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
-          : !_isSignedIn
-              ? _SignInPage(
-                  configured: _auth.isConfigured,
-                  busy: _authBusy,
-                  error: _authError,
-                  webButton: null,
-                  showDriveTestAction: kIsWeb,
-                  onSignIn: _signIn,
-                  onDriveTest: _enterDriveTestMode,
-                )
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final desktop = constraints.maxWidth >= 850;
-                    return Scaffold(
-                      body: SafeArea(
-                        child: Row(
-                          children: [
-                            if (desktop)
-                              _SideNavigation(
-                                selectedIndex: _destination,
-                                bookCount: _books.length,
-                                onSelected: (index) => setState(() {
-                                  _destination = index;
-                                }),
-                              ),
-                            Expanded(
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 220),
-                                child: _buildPage(desktop),
-                              ),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final desktop = constraints.maxWidth >= 850;
+                return Scaffold(
+                  body: SafeArea(
+                    child: Row(
+                      children: [
+                        if (desktop)
+                          _SideNavigation(
+                            selectedIndex: _destination,
+                            bookCount: _books.length,
+                            onSelected: (index) => setState(() {
+                              _destination = index;
+                            }),
+                          ),
+                        Expanded(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 220),
+                            child: _buildPage(desktop),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  bottomNavigationBar: desktop
+                      ? null
+                      : NavigationBar(
+                          selectedIndex: _destination,
+                          onDestinationSelected: (index) => setState(() {
+                            _destination = index;
+                          }),
+                          destinations: const [
+                            NavigationDestination(
+                              icon: Icon(Icons.auto_stories_outlined),
+                              selectedIcon: Icon(Icons.auto_stories),
+                              label: 'Library',
+                            ),
+                            NavigationDestination(
+                              icon: Icon(Icons.menu_book_outlined),
+                              selectedIcon: Icon(Icons.menu_book),
+                              label: 'Read',
+                            ),
+                            NavigationDestination(
+                              icon: Icon(Icons.tune_outlined),
+                              selectedIcon: Icon(Icons.tune),
+                              label: 'Settings',
                             ),
                           ],
                         ),
-                      ),
-                      bottomNavigationBar: desktop
-                          ? null
-                          : NavigationBar(
-                              selectedIndex: _destination,
-                              onDestinationSelected: (index) => setState(() {
-                                _destination = index;
-                              }),
-                              destinations: const [
-                                NavigationDestination(
-                                  icon: Icon(Icons.auto_stories_outlined),
-                                  selectedIcon: Icon(Icons.auto_stories),
-                                  label: 'Library',
-                                ),
-                                NavigationDestination(
-                                  icon: Icon(Icons.menu_book_outlined),
-                                  selectedIcon: Icon(Icons.menu_book),
-                                  label: 'Read',
-                                ),
-                                NavigationDestination(
-                                  icon: Icon(Icons.tune_outlined),
-                                  selectedIcon: Icon(Icons.tune),
-                                  label: 'Settings',
-                                ),
-                              ],
-                            ),
-                    );
-                  },
-                ),
+                );
+              },
+            ),
     );
   }
 
@@ -366,9 +267,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         book: _readingBook,
         bytes: _readerBytes,
         loading: _readerBusy,
-        progress: _readingBook == null
-            ? null
-            : _progress[_readingBook!.driveEntry.id],
+        progress: _readingBook == null ? null : _progress[_readingBook!.id],
         fontFamily: _fontFamily,
         pageColor: _pageColor,
         onCustomize: _showReaderSettings,
@@ -384,12 +283,8 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         key: const ValueKey('settings'),
         fontFamily: _fontFamily,
         pageColor: _pageColor,
-        folderName: _folderName,
-        driveBusy: _driveBusy,
-        driveStatus: _driveStatus,
         onFontChanged: (value) => setState(() => _fontFamily = value),
         onColorChanged: (value) => setState(() => _pageColor = value),
-        onConnect: _connectDrive,
       );
     }
     return _LibraryPage(
@@ -397,14 +292,12 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
       desktop: desktop,
       books: _books,
       progress: _progress,
-      folderName: _folderName,
-      driveBusy: _driveBusy,
-      driveStatus: _driveStatus,
+      importBusy: _importBusy,
+      error: _libraryError,
       query: _query,
       onQueryChanged: (value) => setState(() => _query = value),
       onOpenBook: _showBookDetails,
-      onConnect: _connectDrive,
-      onSignOut: _signOut,
+      onImport: _importEpubs,
     );
   }
 
@@ -415,7 +308,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
       backgroundColor: _paper,
       builder: (context) => _BookDetailsSheet(
         book: book,
-        progress: _progress[book.driveEntry.id],
+        progress: _progress[book.id],
         onRead: () {
           Navigator.pop(context);
           unawaited(_openReader(book));
@@ -444,221 +337,6 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
       ),
     );
   }
-}
-
-class _SignInPage extends StatelessWidget {
-  const _SignInPage({
-    required this.configured,
-    required this.busy,
-    required this.error,
-    required this.webButton,
-    required this.showDriveTestAction,
-    required this.onSignIn,
-    required this.onDriveTest,
-  });
-
-  final bool configured;
-  final bool busy;
-  final String? error;
-  final Widget? webButton;
-  final bool showDriveTestAction;
-  final VoidCallback onSignIn;
-  final VoidCallback onDriveTest;
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(28),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.auto_stories, color: _green, size: 46),
-                    const SizedBox(height: 18),
-                    const Text(
-                      'Reading Novels',
-                      style:
-                          TextStyle(fontSize: 30, fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Sign in with Google to open your reading library.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Color(0xFF77796F)),
-                    ),
-                    const SizedBox(height: 28),
-                    if (webButton != null)
-                      webButton!
-                    else
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: configured && !busy ? onSignIn : null,
-                          icon: busy
-                              ? const SizedBox.square(
-                                  dimension: 18,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.login),
-                          label: Text(
-                              busy ? 'Connecting...' : 'Continue with Google'),
-                        ),
-                      ),
-                    if (showDriveTestAction) ...[
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: busy ? null : onDriveTest,
-                        icon: const Icon(Icons.folder_open_outlined),
-                        label: const Text('Open library for Drive test'),
-                      ),
-                    ],
-                    if (!configured) ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Google OAuth is not configured yet. Add the OAuth client values to the run configuration to enable sign-in.',
-                        textAlign: TextAlign.center,
-                        style:
-                            TextStyle(color: Color(0xFF77796F), fontSize: 13),
-                      ),
-                    ],
-                    if (error != null) ...[
-                      const SizedBox(height: 16),
-                      Text(error!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: _coral)),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      );
-}
-
-class _DriveFolderPicker extends StatefulWidget {
-  const _DriveFolderPicker({required this.service});
-
-  final DriveLibraryService service;
-
-  @override
-  State<_DriveFolderPicker> createState() => _DriveFolderPickerState();
-}
-
-class _DriveFolderPickerState extends State<_DriveFolderPicker> {
-  final List<DriveEntry> _path = [
-    const DriveEntry(
-      id: 'root',
-      name: 'My Drive',
-      mimeType: 'application/vnd.google-apps.folder',
-    ),
-  ];
-  List<DriveEntry> _folders = [];
-  String? _error;
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFolders();
-  }
-
-  Future<void> _loadFolders() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final children = await widget.service.listChildren(_path.last.id);
-      if (!mounted) return;
-      setState(
-          () => _folders = children.where((entry) => entry.isFolder).toList());
-    } catch (error) {
-      if (mounted) setState(() => _error = error.toString());
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  void _openFolder(DriveEntry folder) {
-    setState(() => _path.add(folder));
-    _loadFolders();
-  }
-
-  void _goBack() {
-    if (_path.length <= 1) return;
-    setState(() => _path.removeLast());
-    _loadFolders();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-        title: Row(
-          children: [
-            if (_path.length > 1)
-              IconButton(
-                tooltip: 'Back to parent folder',
-                onPressed: _goBack,
-                icon: const Icon(Icons.arrow_back),
-              ),
-            Expanded(
-                child: Text(_path.last.name,
-                    maxLines: 1, overflow: TextOverflow.ellipsis)),
-          ],
-        ),
-        content: SizedBox(
-          width: 430,
-          height: 360,
-          child: _loading
-              ? const Center(child: CircularProgressIndicator())
-              : _error != null
-                  ? Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SelectableText(_error!, textAlign: TextAlign.center),
-                          const SizedBox(height: 12),
-                          TextButton.icon(
-                            onPressed: _loadFolders,
-                            icon: const Icon(Icons.refresh),
-                            label: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    )
-                  : _folders.isEmpty
-                      ? const Center(
-                          child:
-                              Text('No folders here. You can use this folder.'))
-                      : ListView.builder(
-                          itemCount: _folders.length,
-                          itemBuilder: (context, index) {
-                            final folder = _folders[index];
-                            return ListTile(
-                              leading: const Icon(Icons.folder_outlined),
-                              title: Text(folder.name,
-                                  maxLines: 1, overflow: TextOverflow.ellipsis),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () => _openFolder(folder),
-                            );
-                          },
-                        ),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel')),
-          FilledButton(
-            onPressed:
-                _loading ? null : () => Navigator.pop(context, _path.last),
-            child: const Text('Use this folder'),
-          ),
-        ],
-      );
 }
 
 class _SideNavigation extends StatelessWidget {
@@ -769,27 +447,23 @@ class _LibraryPage extends StatelessWidget {
     required this.desktop,
     required this.books,
     required this.progress,
-    required this.folderName,
-    required this.driveBusy,
-    required this.driveStatus,
+    required this.importBusy,
+    required this.error,
     required this.query,
     required this.onQueryChanged,
     required this.onOpenBook,
-    required this.onConnect,
-    required this.onSignOut,
+    required this.onImport,
   });
 
   final bool desktop;
   final List<Book> books;
   final Map<String, ReadingProgress> progress;
-  final String? folderName;
-  final bool driveBusy;
-  final String driveStatus;
+  final bool importBusy;
+  final String? error;
   final String query;
   final ValueChanged<String> onQueryChanged;
   final ValueChanged<Book> onOpenBook;
-  final VoidCallback onConnect;
-  final VoidCallback onSignOut;
+  final VoidCallback onImport;
 
   @override
   Widget build(BuildContext context) {
@@ -825,25 +499,16 @@ class _LibraryPage extends StatelessWidget {
                   ),
                   if (desktop) ...[
                     OutlinedButton.icon(
-                      onPressed: driveBusy ? null : onConnect,
-                      icon: driveBusy
+                      onPressed: importBusy ? null : onImport,
+                      icon: importBusy
                           ? const SizedBox.square(
                               dimension: 16,
                               child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.folder_open_outlined, size: 18),
-                      label: Text(driveBusy
-                          ? driveStatus
-                          : folderName == null
-                              ? 'Choose Drive folder'
-                              : 'Change folder'),
+                          : const Icon(Icons.file_open_outlined, size: 18),
+                      label: Text(importBusy ? 'Importing...' : 'Import Files'),
                     ),
                     const SizedBox(width: 10),
                   ],
-                  IconButton(
-                    tooltip: 'Sign out',
-                    onPressed: onSignOut,
-                    icon: const Icon(Icons.logout),
-                  ),
                 ],
               ),
               if (!desktop) ...[
@@ -851,25 +516,20 @@ class _LibraryPage extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: OutlinedButton.icon(
-                    onPressed: driveBusy ? null : onConnect,
-                    icon: driveBusy
+                    onPressed: importBusy ? null : onImport,
+                    icon: importBusy
                         ? const SizedBox.square(
                             dimension: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Icon(Icons.folder_open_outlined, size: 18),
-                    label: Text(driveBusy
-                        ? driveStatus
-                        : folderName == null
-                            ? 'Choose Drive folder'
-                            : 'Change folder'),
+                        : const Icon(Icons.file_open_outlined, size: 18),
+                    label: Text(importBusy ? 'Importing...' : 'Import Files'),
                   ),
                 ),
               ],
-              if (folderName != null) ...[
+              if (error != null) ...[
                 const SizedBox(height: 12),
-                Text('Drive folder: $folderName',
-                    style: const TextStyle(color: Color(0xFF77796F))),
+                SelectableText(error!),
               ],
               const SizedBox(height: 25),
               TextField(
@@ -905,7 +565,7 @@ class _LibraryPage extends StatelessWidget {
                   child: Center(
                     child: Text(
                       books.isEmpty
-                          ? 'Choose a Drive folder containing EPUB books to fill your library.'
+                          ? 'Import EPUB files to fill your library.'
                           : 'No books match that search.',
                       textAlign: TextAlign.center,
                     ),
@@ -925,7 +585,7 @@ class _LibraryPage extends StatelessWidget {
                     ),
                     itemBuilder: (context, index) => _BookTile(
                       book: results[index],
-                      progress: progress[results[index].driveEntry.id],
+                      progress: progress[results[index].id],
                       onTap: () => onOpenBook(results[index]),
                     ),
                   ),
@@ -1186,7 +846,7 @@ class _ReaderPageState extends State<_ReaderPage> {
   void didUpdateWidget(covariant _ReaderPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.bytes != widget.bytes ||
-        oldWidget.book?.driveEntry.id != widget.book?.driveEntry.id) {
+        oldWidget.book?.id != widget.book?.id) {
       _epubController = null;
       _createEpubController();
     }
@@ -1195,7 +855,7 @@ class _ReaderPageState extends State<_ReaderPage> {
   void _createEpubController() {
     final book = widget.book;
     final bytes = widget.bytes;
-    if (book != null && bytes != null && book.driveEntry.format == 'EPUB') {
+    if (book != null && bytes != null) {
       _epubController = EpubController(
         document: EpubDocument.openData(bytes),
         epubCfi: widget.progress?.epubCfi,
@@ -1314,22 +974,14 @@ class _SettingsPage extends StatelessWidget {
     super.key,
     required this.fontFamily,
     required this.pageColor,
-    required this.folderName,
-    required this.driveBusy,
-    required this.driveStatus,
     required this.onFontChanged,
     required this.onColorChanged,
-    required this.onConnect,
   });
 
   final String fontFamily;
   final Color pageColor;
-  final String? folderName;
-  final bool driveBusy;
-  final String driveStatus;
   final ValueChanged<String> onFontChanged;
   final ValueChanged<Color> onColorChanged;
-  final VoidCallback onConnect;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -1350,39 +1002,6 @@ class _SettingsPage extends StatelessWidget {
             pageColor: pageColor,
             onFontChanged: onFontChanged,
             onColorChanged: onColorChanged,
-          ),
-          const SizedBox(height: 36),
-          const Text('LIBRARY SYNC',
-              style: TextStyle(
-                  fontSize: 11, fontWeight: FontWeight.w700, color: _green)),
-          const SizedBox(height: 12),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.cloud_outlined),
-            title: const Text('Google Drive'),
-            subtitle: Text(folderName == null
-                ? 'No folder selected'
-                : 'Connected to Google Drive'),
-            trailing: OutlinedButton.icon(
-              onPressed: driveBusy ? null : onConnect,
-              icon: driveBusy
-                  ? const SizedBox.square(
-                      dimension: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.folder_open_outlined, size: 18),
-              label: Text(driveBusy
-                  ? driveStatus
-                  : folderName == null
-                      ? 'Choose'
-                      : 'Change'),
-            ),
-          ),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.folder_outlined),
-            title: const Text('Books folder'),
-            subtitle: Text(folderName ?? 'Choose a Drive folder'),
           ),
         ],
       );

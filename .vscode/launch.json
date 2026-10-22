@@ -9,8 +9,7 @@
       "deviceId": "web-server",
       "args": [
         "--web-hostname=127.0.0.1",
-        "--web-port=7357",
-        "--dart-define=GOOGLE_OAUTH_CLIENT_ID=${env:GOOGLE_OAUTH_CLIENT_ID}"
+        "--web-port=7357"
       ]
     }
   ]
