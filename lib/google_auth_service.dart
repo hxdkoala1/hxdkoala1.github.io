@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:google_sign_in_all_platforms/google_sign_in_all_platforms.dart';
 import 'package:http/http.dart' as http;
 
@@ -15,6 +14,8 @@ class GoogleAuthService {
   static const driveScope = 'https://www.googleapis.com/auth/drive.readonly';
 
   GoogleSignIn? _googleSignIn;
+  String? _webAccessToken;
+  DateTime? _webAccessTokenExpiresAt;
 
   Stream<GoogleSignInCredentials?> get authenticationState =>
       _client.authenticationState;
@@ -46,38 +47,56 @@ class GoogleAuthService {
   }
 
   Future<GoogleSignInCredentials?> restoreSession() async {
-    if (!isConfigured) return null;
+    if (!isConfigured || kIsWeb) return null;
     return _client.silentSignIn();
   }
 
-  Future<GoogleSignInCredentials?> signIn() => _client.signIn();
+  Future<GoogleSignInCredentials?> signIn() async {
+    if (!isConfigured) return null;
+    if (!kIsWeb) return _client.signIn();
+
+    final accessToken = await _getWebAccessToken();
+    return GoogleSignInCredentials(
+      accessToken: accessToken,
+      scopes: const [driveScope],
+      expiresIn: _webAccessTokenExpiresAt,
+    );
+  }
 
   Future<void> signOut() async {
-    if (isConfigured) await _client.signOut();
+    _webAccessToken = null;
+    _webAccessTokenExpiresAt = null;
+    if (isConfigured && !kIsWeb) await _client.signOut();
   }
 
   Future<http.Client?> get authenticatedClient async {
     if (!isConfigured) return null;
     if (kIsWeb) {
-      final accessToken = await drive_access
-          .requestDriveAccessToken(clientId, driveScope)
-          .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw TimeoutException(
-              'Google did not return from the authorization window within 30 seconds.',
-            ),
-          );
-      return _DriveAccessClient(accessToken);
+      return _DriveAccessClient(await _getWebAccessToken());
     }
     return _client.authenticatedClient;
   }
 
-  Widget? webSignInButton(
-      {required ValueChanged<GoogleSignInCredentials> onSignIn}) {
-    if (!kIsWeb || !isConfigured) return null;
-    return _client.signInButton(
-      config: GSIAPButtonConfig(onSignIn: onSignIn),
-    );
+  Future<String> _getWebAccessToken() async {
+    final currentToken = _webAccessToken;
+    final expiresAt = _webAccessTokenExpiresAt;
+    if (currentToken != null &&
+        expiresAt != null &&
+        expiresAt.isAfter(DateTime.now().add(const Duration(minutes: 1)))) {
+      return currentToken;
+    }
+
+    final accessToken = await drive_access
+        .requestDriveAccessToken(clientId, driveScope)
+        .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException(
+            'Google did not return from the authorization window within 30 seconds.',
+          ),
+        );
+    _webAccessToken = accessToken;
+    _webAccessTokenExpiresAt = DateTime.now().add(const Duration(minutes: 50));
+    return accessToken;
   }
 }
 

@@ -58,6 +58,9 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
   final _auth = GoogleAuthService();
   final _progressStore = ReadingProgressStore();
 
+  bool get _driveTestMode =>
+      kIsWeb && Uri.base.queryParameters['driveTest'] == '1';
+
   int _destination = 0;
   String _query = '';
   String _fontFamily = 'serif';
@@ -90,7 +93,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
       _progress = {};
     }
 
-    if (_auth.isConfigured) {
+    if (_auth.isConfigured && !kIsWeb && !_driveTestMode) {
       try {
         _authRestoring = true;
         _authError = null;
@@ -103,6 +106,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         _authError = 'Google sign-in could not be restored: $error';
       }
     }
+    if (_driveTestMode) _isSignedIn = true;
     if (mounted) {
       setState(() {
         _authRestoring = false;
@@ -143,6 +147,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
     await _auth.signOut();
     if (!mounted) return;
     setState(() {
+      _isSignedIn = false;
       _books = [];
       _drive = null;
       _folderName = null;
@@ -291,15 +296,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
                   configured: _auth.isConfigured,
                   busy: _authBusy,
                   error: _authError,
-                  webButton: _auth.webSignInButton(
-                    onSignIn: (_) {
-                      if (!mounted) return;
-                      setState(() {
-                        _isSignedIn = true;
-                        _authError = null;
-                      });
-                    },
-                  ),
+                  webButton: null,
                   onSignIn: _signIn,
                 )
               : LayoutBuilder(
