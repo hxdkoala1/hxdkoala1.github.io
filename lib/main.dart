@@ -58,9 +58,6 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
   final _auth = GoogleAuthService();
   final _progressStore = ReadingProgressStore();
 
-  bool get _driveTestMode =>
-      kIsWeb && Uri.base.queryParameters['driveTest'] == '1';
-
   int _destination = 0;
   String _query = '';
   String _fontFamily = 'serif';
@@ -93,7 +90,7 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
       _progress = {};
     }
 
-    if (_auth.isConfigured && !kIsWeb && !_driveTestMode) {
+    if (_auth.isConfigured && !kIsWeb) {
       try {
         _authRestoring = true;
         _authError = null;
@@ -106,7 +103,6 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         _authError = 'Google sign-in could not be restored: $error';
       }
     }
-    if (_driveTestMode) _isSignedIn = true;
     if (mounted) {
       setState(() {
         _authRestoring = false;
@@ -141,6 +137,13 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
         });
       }
     }
+  }
+
+  void _enterDriveTestMode() {
+    setState(() {
+      _isSignedIn = true;
+      _authError = null;
+    });
   }
 
   Future<void> _signOut() async {
@@ -297,7 +300,9 @@ class _ReadingNovelsAppState extends State<ReadingNovelsApp> {
                   busy: _authBusy,
                   error: _authError,
                   webButton: null,
+                  showDriveTestAction: kIsWeb,
                   onSignIn: _signIn,
+                  onDriveTest: _enterDriveTestMode,
                 )
               : LayoutBuilder(
                   builder: (context, constraints) {
@@ -447,14 +452,18 @@ class _SignInPage extends StatelessWidget {
     required this.busy,
     required this.error,
     required this.webButton,
+    required this.showDriveTestAction,
     required this.onSignIn,
+    required this.onDriveTest,
   });
 
   final bool configured;
   final bool busy;
   final String? error;
   final Widget? webButton;
+  final bool showDriveTestAction;
   final VoidCallback onSignIn;
+  final VoidCallback onDriveTest;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -499,6 +508,14 @@ class _SignInPage extends StatelessWidget {
                               busy ? 'Connecting...' : 'Continue with Google'),
                         ),
                       ),
+                    if (showDriveTestAction) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: busy ? null : onDriveTest,
+                        icon: const Icon(Icons.folder_open_outlined),
+                        label: const Text('Open library for Drive test'),
+                      ),
+                    ],
                     if (!configured) ...[
                       const SizedBox(height: 16),
                       const Text(
